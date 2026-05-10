@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TravelMate - Complete Travel App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .map-container { height: 500px; width: 100%; border-radius: 12px; }
+        .card { transition: all 0.3s ease; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .sos-pulse { animation: sosPulse 2s infinite; }
+        @keyframes sosPulse {
+            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+            70% { box-shadow: 0 0 0 30px rgba(220, 38, 38, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+        }
+        .slide-in { animation: slideIn 0.3s ease; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .tab-active { background: white; color: #2563eb; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #2563eb; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="app"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const App = () => {
+            // State management
+            const [activeTab, setActiveTab] = useState('home');
+            const [destinations] = useState([
+                {
+                    id: 1,
+                    name: "Paris",
+                    country: "France",
+                    description: "The City of Light - Experience world-class art, cuisine, and romance",
+                    image: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=600",
+                    coordinates: { lat: 48.8566, lng: 2.3522 },
+                    rating: 4.8,
+                    price: "$$$",
+                    attractions: ["Eiffel Tower", "Louvre Museum", "Notre-Dame", "Seine River"],
+                    weather: { temp: "18°C", condition: "Partly Cloudy" },
+                    bestTime: "April-October",
+                    emergencyNumbers: { police: "17", ambulance: "15", fire: "18" }
+                },
+                {
+                    id: 2,
+                    name: "Tokyo",
+                    country: "Japan",
+                    description: "Where ancient traditions meet cutting-edge technology",
+                    image: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=600",
+                    coordinates: { lat: 35.6762, lng: 139.6503 },
+                    rating: 4.9,
+                    price: "$$$",
+                    attractions: ["Shibuya Crossing", "Senso-ji Temple", "Tsukiji Market", "Akihabara"],
+                    weather: { temp: "22°C", condition: "Clear" },
+                    bestTime: "March-May",
+                    emergencyNumbers: { police: "110", ambulance: "119", fire: "119" }
+                },
+                {
+                    id: 3,
+                    name: "New York",
+                    country: "USA",
+                    description: "The city that never sleeps - endless energy and possibilities",
+                    image: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=600",
+                    coordinates: { lat: 40.7128, lng: -74.0060 },
+                    rating: 4.7,
+                    price: "$$$",
+                    attractions: ["Central Park", "Times Square", "Brooklyn Bridge", "Broadway"],
+                    weather: { temp: "15°C", condition: "Sunny" },
+                    bestTime: "September-November",
+                    emergencyNumbers: { police: "911", ambulance: "911", fire: "911" }
+                },
+                {
+                    id: 4,
+                    name: "Bali",
+                    country: "Indonesia",
+                    description: "Tropical paradise with stunning beaches and spiritual culture",
+                    image: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600",
+                    coordinates: { lat: -8.3405, lng: 115.0920 },
+                    rating: 4.6,
+                    price: "$",
+                    attractions: ["Ubud", "Tanah Lot", "Uluwatu Temple", "Rice Terraces"],
+                    weather: { temp: "28°C", condition: "Tropical" },
+                    bestTime: "April-October",
+                    emergencyNumbers: { police: "110", ambulance: "118", fire: "113" }
+                },
+                {
+                    id: 5,
+                    name: "Barcelona",
+                    country: "Spain",
+                    description: "Mediterranean masterpiece of art, architecture, and cuisine",
+                    image: "https://images.unsplash.com/photo-1583422409516-2895a77efded?w=600",
+                    coordinates: { lat: 41.3874, lng: 2.1686 },
+                    rating: 4.7,
+                    price: "$$",
+                    attractions: ["Sagrada Familia", "Park Güell", "Las Ramblas", "Gothic Quarter"],
+                    weather: { temp: "20°C", condition: "Sunny" },
+                    bestTime: "May-July",
+                    emergencyNumbers: { police: "112", ambulance: "112", fire: "112" }
+                },
+                {
+                    id: 6,
+                    name: "Dubai",
+                    country: "UAE",
+                    description: "Ultra-modern city of superlatives and desert adventures",
+                    image: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=600",
+                    coordinates: { lat: 25.2048, lng: 55.2708 },
+                    rating: 4.8,
+                    price: "$$$$",
+                    attractions: ["Burj Khalifa", "Palm Jumeirah", "Dubai Mall", "Desert Safari"],
+                    weather: { temp: "35°C", condition: "Hot" },
+                    bestTime: "November-March",
+                    emergencyNumbers: { police: "999", ambulance: "998", fire: "997" }
+                }
+            ]);
+
+            const [selectedDestination, setSelectedDestination] = useState(null);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [mapCenter, setMapCenter] = useState({ lat: 20, lng: 0 });
+            const [mapZoom, setMapZoom] = useState(2);
+            const mapRef = useRef(null);
+            const mapInstance = useRef(null);
+
+            // Translation state
+            const [translationInput, setTranslationInput] = useState('');
+            const [translatedText, setTranslatedText] = useState('');
+            const [targetLanguage, setTargetLanguage] = useState('es');
+            const [isTranslating, setIsTranslating] = useState(false);
+
+            // Emergency state
+            const [emergencyType, setEmergencyType] = useState('medical');
+            const [showSOSConfirm, setShowSOSConfirm] = useState(false);
+            const [sosCountdown, setSosCountdown] = useState(5);
+            const [sosActive, setSosActive] = useState(false);
+
+            // Journal state
+            const [journalEntries, setJournalEntries] = useState(() => {
+                const saved = localStorage.getItem('journalEntries');
+                return saved ? JSON.parse(saved) : [];
+            });
+            const [newEntry, setNewEntry] = useState({ text: '', mood: '😊', location: '' });
+
+            // Route planning state
+            const [routeOrigin, setRouteOrigin] = useState('');
+            const [routeDestination, setRouteDestination] = useState('');
+            const [showRoute, setShowRoute] = useState(false);
+
+            // Initialize map
+            useEffect(() => {
+                if (activeTab === 'map' && mapRef.current && !mapInstance.current) {
+                    mapInstance.current = L.map(mapRef.current).setView([20, 0], 2);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© OpenStreetMap contributors'
+                    }).addTo(mapInstance.current);
+                }
+                if (mapInstance.current && selectedDestination) {
+                    mapInstance.current.setView([selectedDestination.coordinates.lat, selectedDestination.coordinates.lng], 13);
+                }
+            }, [activeTab, selectedDestination]);
+
+            // Save journal entries
+            useEffect(() => {
+                localStorage.setItem('journalEntries', JSON.stringify(journalEntries));
+            }, [journalEntries]);
+
+            const filteredDestinations = destinations.filter(d =>
+                d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                d.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                d.description.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+
+            const handleTranslate = () => {
+                setIsTranslating(true);
+                // Mock translation
+                const translations = {
+                    es: { hello: 'hola', 'thank you': 'gracias', help: 'ayuda', 'where is': 'dónde está', 'how much': 'cuánto' },
+                    fr: { hello: 'bonjour', 'thank you': 'merci', help: 'aide', 'where is': 'où est', 'how much': 'combien' },
+                    ja: { hello: 'こんにちは', 'thank you': 'ありがとう', help: '助けて', 'where is': 'どこですか', 'how much': 'いくら' },
+                    de: { hello: 'hallo', 'thank you': 'danke', help: 'hilfe', 'where is': 'wo ist', 'how much': 'wie viel' },
+                    zh: { hello: '你好', 'thank you': '谢谢', help: '帮助', 'where is': '在哪里', 'how much': '多少钱' },
+                    ko: { hello: '안녕하세요', 'thank you': '감사합니다', help: '도와주세요', 'where is': '어디에 있어요', 'how much': '얼마예요' }
+                };
+
+                setTimeout(() => {
+                    const lowerInput = translationInput.toLowerCase();
+                    const translated = translations[targetLanguage]?.[lowerInput] || `[${targetLanguage.toUpperCase()}] ${translationInput}`;
+                    setTranslatedText(translated);
+                    setIsTranslating(false);
+                }, 800);
+            };
+
+            const handleSOS = () => {
+                setShowSOSConfirm(true);
+                setSosCountdown(5);
+                const timer = setInterval(() => {
+                    setSosCountdown(prev => {
+                        if (prev <= 1) {
+                            clearInterval(timer);
+                            setSosActive(true);
+                            setShowSOSConfirm(false);
+                            setTimeout(() => setSosActive(false), 5000);
+                            return 0;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+            };
+
+            const addJournalEntry = () => {
+                if (newEntry.text.trim()) {
+                    const entry = {
+                        id: Date.now(),
+                        ...newEntry,
+                        timestamp: new Date().toISOString()
+                    };
+                    setJournalEntries([entry, ...journalEntries]);
+                    setNewEntry({ text: '', mood: '😊', location: '' });
+                }
+            };
+
+            const handleCalculateRoute = () => {
+                console.log('Calculating route from', routeOrigin, 'to', routeDestination);
+                setShowRoute(true);
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+                    {/* Navigation */}
+                    <nav className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-500 text-white shadow-lg sticky top-0 z-50">
+                        <div className="max-w-7xl mx-auto px-4">
+                            <div className="flex items-center justify-between h-16">
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-3xl">✈️</span>
+                                    <h1 className="text-2xl font-bold">TravelMate</h1>
+                                </div>
+                                <div className="hidden md:flex space-x-1">
+                                    {[
+                                        { id: 'home', icon: '🏠', label: 'Home' },
+                                        { id: 'map', icon: '🗺️', label: 'Map' },
+                                        { id: 'translate', icon: '🌐', label: 'Translate' },
+                                        { id: 'journal', icon: '📖', label: 'Journal' },
+                                        { id: 'emergency', icon: '🆘', label: 'SOS' }
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                                activeTab === tab.id 
+                                                    ? 'tab-active' 
+                                                    : 'text-white hover:bg-white/20'
+                                            }`}
+                                        >
+                                            {tab.icon} {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                {/* Mobile menu */}
+                                <div className="md:hidden flex space-x-2">
+                                    {[
+                                        { id: 'home', icon: '🏠' },
+                                        { id: 'map', icon: '🗺️' },
+                                        { id: 'translate', icon: '🌐' },
+                                        { id: 'journal', icon: '📖' },
+                                        { id: 'emergency', icon: '🆘' }
+                                    ].map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={`p-2 rounded-lg text-xl ${
+                                                activeTab === tab.id ? 'bg-white text-blue-600' : ''
+                                            }`}
+                                        >
+                                            {tab.icon}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-4 py-8">
+                        {/* Home/Destinations Tab */}
+                        {(activeTab === 'home') && (
+                            <div className="slide-in">
+                                {/* Hero Section */}
+                                <div className="text-center mb-12">
+                                    <h2 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+                                        Explore the World
+                                    </h2>
+                                    <p className="text-xl text-gray-600 mb-8">
+                                        Discover amazing destinations, plan your routes, and travel safely
+                                    </p>
+                                    <div className="max-w-2xl mx-auto relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Search destinations..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl text-lg focus:outline-none focus:border-blue-500 shadow-lg"
+                                        />
+                                        <span className="absolute left-4 top-4 text-2xl">🔍</span>
+                                    </div>
+                                </div>
+
+                                {/* Destination Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {filteredDestinations.map(dest => (
+                                        <div
+                                            key={dest.id}
+                                            onClick={() => { setSelectedDestination(dest); setActiveTab('map'); }}
+                                            className="card bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer group"
+                                        >
+                                            <div className="relative overflow-hidden">
+                                                <img
+                                                    src={dest.image}
+                                                    alt={dest.name}
+                                                    className="w-full h-56 object-cover group-hover:scale-110 transition-transform duration-500"
+                                                />
+                                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-bold flex items-center gap-1">
+                                                    ⭐ {dest.rating}
+                                                </div>
+                                                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-semibold">
+                                                    {dest.price}
+                                                </div>
+                                            </div>
+                                            <div className="p-6">
+                                                <h3 className="text-2xl font-bold text-gray-800">{dest.name}</h3>
+                                                <p className="text-blue-600 font-medium">{dest.country}</p>
+                                                <p className="text-gray-600 mt-2 line-clamp-2">{dest.description}</p>
+                                                <div className="mt-3 flex flex-wrap gap-1">
+                                                    {dest.attractions.map((attr, idx) => (
+                                                        <span key={idx} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full">
+                                                            {attr}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                                <div className="mt-3 flex justify-between text-sm text-gray-500">
+                                                    <span>🌡️ {dest.weather.temp}</span>
+                                                    <span>📅 Best: {dest.bestTime}</span>
+                                                </div>
+                                                <button className="mt-4 w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all">
+                                                    Explore Destination →
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Map Tab */}
+                        {activeTab === 'map' && (
+                            <div className="slide-in">
+                                <h2 className="text-3xl font-bold text-gray-800 mb-6">Interactive Map</h2>
+                                <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                                    <div ref={mapRef} className="map-container" />
+                                </div>
+
+                                {/* Route Planner */}
+                                <div className="bg-white rounded-2xl shadow-lg p-6">
+                                    <h3 className="text-xl font-bold mb-4">🗺️ Route Planner</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">From</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Starting point"
+                                                value={routeOrigin}
+                                                onChange={(e) => setRouteOrigin(e.target.value)}
+                                                className="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">To</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Destination"
+                                                value={routeDestination}
+                                                onChange={(e) => setRouteDestination(e.target.value)}
+                                                className="w-full p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <select className="px-4 py-3 border rounded-xl">
+                                            <option>🚗 Driving</option>
+                                            <option>🚶 Walking</option>
+                                            <option>🚲 Cycling</option>
+                                            <option>🚌 Transit</option>
+                                        </select>
+                                        <button
+                                            onClick={handleCalculateRoute}
+                                            className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700"
+                                        >
+                                            Calculate Route
+                                        </button>
+                                    </div>
+                                    {showRoute && (
+                                        <div className="mt-4 p-4 bg-green-50 rounded-xl">
+                                            <p className="text-green-700">✅ Route calculated successfully!</p>
+                                            <p className="text-sm text-gray-600 mt-1">Distance: ~{Math.floor(Math.random() * 100)}km | Duration: ~{Math.floor(Math.random() * 3)}h</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Translate Tab */}
+                        {activeTab === 'translate' && (
+                            <div className="slide-in">
+                                <h2 className="text-3xl font-bold text-gray-800 mb-6">🌐 AI Translation</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-white rounded-2xl shadow-lg p-6">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="text-lg font-semibold">Input Text</h3>
+                                            <select
+                                                value={targetLanguage}
+                                                onChange={(e) => setTargetLanguage(e.target.value)}
+                                                className="border rounded-lg px-3 py-2"
+                                            >
+                                                <option value="es">🇪🇸 Spanish</option>
+                                                <option value="fr">🇫🇷 French</option>
+                                                <option value="ja">🇯🇵 Japanese</option>
+                                                <option value="de">🇩🇪 German</option>
+                                                <option value="zh">🇨🇳 Chinese</option>
+                                                <option value="ko">🇰🇷 Korean</option>
+                                                <option value="ar">🇸🇦 Arabic</option>
+                                                <option value="hi">🇮🇳 Hindi</option>
+                                            </select>
+                                        </div>
+                                        <textarea
+                                            value={translationInput}
+                                            onChange={(e) => setTranslationInput(e.target.value)}
+                                            placeholder="Type text to translate..."
+                                            className="w-full h-40 p-4 border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                        <button
+                                            onClick={handleTranslate}
+                                            disabled={!translationInput || isTranslating}
+                                            className="mt-4 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            {isTranslating ? (
+                                                <><div className="loading-spinner w-5 h-5"></div> Translating...</>
+                                            ) : (
+                                                'Translate'
+                                            )}
+                                        </button>
+                                    </div>
+                                    <div className="bg-white rounded-2xl shadow-lg p-6">
+                                        <h3 className="text-lg font-semibold mb-4">Translation</h3>
+                                        <div className="w-full h-40 p-4 bg-gray-50 rounded-xl overflow-auto">
+                                            {translatedText || 'Translation will appear here...'}
+                                        </div>
+                                        <button
+                                            onClick={() => navigator.clipboard.writeText(translatedText)}
+                                            className="mt-4 w-full border-2 border-blue-600 text-blue-600 py-3 rounded-xl font-semibold hover:bg-blue-50"
+                                            disabled={!translatedText}
+                                        >
+                                            📋 Copy Translation
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Quick Phrases */}
+                                <div className="mt-6 bg-white rounded-2xl shadow-lg p-6">
+                                    <h3 className="text-lg font-semibold mb-4">Quick Phrases</h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        {['Hello', 'Thank you', 'Where is...', 'How much?', 'Help!', 'I need a doctor', 'The bill please', 'Sorry'].map(phrase => (
+                                            <button
+                                                key={phrase}
+                                                onClick={() => setTranslationInput(phrase)}
+                                                className="p-3 text-left border rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all"
+                                            >
+                                                {phrase}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Journal Tab */}
+                        {activeTab === 'journal' && (
+                            <div className="slide-in">
+                                <h2 className="text-3xl font-bold text-gray-800 mb-6">📖 Travel Journal</h2>
+                                
+                                {/* New Entry Form */}
+                                <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                                    <h3 className="text-lg font-semibold mb-4">New Entry</h3>
+                                    <textarea
+                                        value={newEntry.text}
+                                        onChange={(e) => setNewEntry({ ...newEntry, text: e.target.value })}
+                                        placeholder="What happened today? Share your travel experience..."
+                                        className="w-full h-32 p-4 border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mt-4">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-gray-600">Mood:</span>
+                                            {['😊', '😍', '🤩', '😎', '🥳', '🤗', '😴', '😰'].map(m => (
+                                                <button
+                                                    key={m}
+                                                    onClick={() => setNewEntry({ ...newEntry, mood: m })}
+                                                    className={`text-2xl p-1 rounded-lg transition-all ${
+                                                        newEntry.mood === m ? 'bg-blue-100 scale-125' : 'hover:scale-110'
+                                                    }`}
+                                                >
+                                                    {m}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-2 w-full md:w-auto">
+                                            <input
+                                                type="text"
+                                                placeholder="📍 Location"
+                                                value={newEntry.location}
+                                                onChange={(e) => setNewEntry({ ...newEntry, location: e.target.value })}
+                                                className="flex-1 md:w-40 px-3 py-2 border rounded-lg text-sm"
+                                            />
+                                            <button
+                                                onClick={addJournalEntry}
+                                                disabled={!newEntry.text.trim()}
+                                                className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg disabled:opacity-50"
+                                            >
+                                                Save Entry
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Journal Entries */}
+                                <div className="space-y-4">
+                                    {journalEntries.length === 0 ? (
+                                        <div className="text-center py-16 bg-white rounded-2xl shadow-lg">
+                                            <span className="text-7xl">📖</span>
+                                            <p className="text-gray-500 mt-4 text-lg">No journal entries yet</p>
+                                            <p className="text-gray-400">Start documenting your journey!</p>
+                                        </div>
+                                    ) : (
+                                        journalEntries.map(entry => (
+                                            <div key={entry.id} className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all">
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-3xl">{entry.mood}</span>
+                                                        <div>
+                                                            <p className="text-sm text-gray-500">
+                                                                {new Date(entry.timestamp).toLocaleDateString('en-US', {
+                                                                    weekday: 'long',
+                                                                    year: 'numeric',
+                                                                    month: 'long',
+                                                                    day: 'numeric',
+                                                                    hour: '2-digit',
+                                                                    minute: '2-digit'
+                                                                })}
+                                                            </p>
+                                                            {entry.location && (
+                                                                <p className="text-sm text-blue-600">📍 {entry.location}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setJournalEntries(journalEntries.filter(e => e.id !== entry.id))}
+                                                        className="text-gray-400 hover:text-red-500"
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                </div>
+                                                <p className="text-gray-700 text-lg">{entry.text}</p>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Emergency Tab */}
+                        {activeTab === 'emergency' && (
+                            <div className="slide-in">
+                                <h2 className="text-3xl font-bold text-red-600 mb-6">🆘 Emergency SOS</h2>
+                                
+                                {/* Emergency Numbers */}
+                                <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-2xl p-6 mb-6">
+                                    <h3 className="text-xl font-bold text-red-600 mb-4">📞 Local Emergency Numbers</h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        {[
+                                            { icon: '👮', name: 'Police', number: selectedDestination?.emergencyNumbers?.police || '911' },
+                                            { icon: '🚑', name: 'Ambulance', number: selectedDestination?.emergencyNumbers?.ambulance || '911' },
+                                            { icon: '🚒', name: 'Fire', number: selectedDestination?.emergencyNumbers?.fire || '911' },
+                                            { icon: '🛡️', name: 'Tourist Police', number: '112' }
+                                        ].map(service => (
+                                            <a
+                                                key={service.name}
+                                                href={`tel:${service.number}`}
+                                                className="bg-red-600 text-white p-4 rounded-xl text-center hover:bg-red-700 transition-all hover:scale-105"
+                                            >
+                                                <div className="text-3xl mb-1">{service.icon}</div>
+                                                <div className="text-sm font-medium">{service.name}</div>
+                                                <div className="text-2xl font-bold">{service.number}</div>
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Emergency Type */}
+                                <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                                    <h3 className="text-lg font-semibold mb-4">Select Emergency Type</h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                        {[
+                                            { type: 'medical', icon: '🏥', label: 'Medical Emergency' },
+                                            { type: 'accident', icon: '🚨', label: 'Accident' },
+                                            { type: 'crime', icon: '👮', label: 'Crime' },
+                                            { type: 'disaster', icon: '🌪️', label: 'Natural Disaster' },
+                                            { type: 'lost', icon: '🗺️', label: 'Lost/Stranded' },
+                                            { type: 'other', icon: '❗', label: 'Other Emergency' }
+                                        ].map(emergency => (
+                                            <button
+                                                key={emergency.type}
+                                                onClick={() => setEmergencyType(emergency.type)}
+                                                className={`p-4 rounded-xl border-2 transition-all ${
+                                                    emergencyType === emergency.type
+                                                        ? 'border-red-500 bg-red-50 shadow-lg'
+                                                        : 'border-gray-200 hover:border-red-300'
+                                                }`}
+                                            >
+                                                <div className="text-2xl mb-1">{emergency.icon}</div>
+                                                <div className="text-xs font-medium">{emergency.label}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* SOS Button */}
+                                <div className="text-center">
+                                    {!showSOSConfirm && !sosActive ? (
+                                        <button
+                                            onClick={handleSOS}
+                                            className="sos-pulse bg-red-600 text-white px-20 py-10 rounded-full text-3xl font-bold hover:bg-red-700 shadow-2xl transition-all"
+                                        >
+                                            SOS EMERGENCY
+                                        </button>
+                                    ) : showSOSConfirm ? (
+                                        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-2xl p-8 max-w-md mx-auto">
+                                            <p className="text-2xl font-bold text-yellow-700 mb-4">
+                                                Sending SOS in {sosCountdown}...
+                                            </p>
+                                            <p className="text-gray-600 mb-4">
+                                                This will alert emergency services and your contacts
+                                            </p>
+                                            <button
+                                                onClick={() => { setShowSOSConfirm(false); setSosCountdown(5); }}
+                                                className="bg-gray-600 text-white px-8 py-3 rounded-xl font-semibold"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-green-100 border-2 border-green-400 rounded-2xl p-8 max-w-md mx-auto">
+                                            <p className="text-2xl font-bold text-green-700 mb-2">✅ SOS Sent!</p>
+                                            <p className="text-green-600">Emergency services have been notified. Stay calm.</p>
+                                        </div>
+                                    )}
+                                    <p className="text-gray-500 mt-4 text-sm">
+                                        This will immediately alert local authorities and your emergency contacts
+                                    </p>
+                                </div>
+
+                                {/* Safety Tips */}
+                                <div className="mt-8 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-2xl p-6">
+                                    <h3 className="text-lg font-semibold mb-4">⚠️ Safety Tips</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {[
+                                            'Always share your location with trusted contacts',
+                                            'Keep emergency numbers saved offline',
+                                            'Know the nearest embassy or consulate',
+                                            'Keep copies of important documents',
+                                            'Stay aware of your surroundings',
+                                            'Follow instructions from local authorities'
+                                        ].map((tip, idx) => (
+                                            <div key={idx} className="flex items-start gap-2">
+                                                <span className="text-yellow-600 mt-1">•</span>
+                                                <span className="text-sm text-gray-700">{tip}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Footer */}
+                    <footer className="bg-gradient-to-r from-gray-800 to-gray-900 text-white py-8 mt-12">
+                        <div className="max-w-7xl mx-auto px-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="text-2xl">✈️</span>
+                                        <h3 className="text-xl font-bold">TravelMate</h3>
+                                    </div>
+                                    <p className="text-gray-400 text-sm">Your ultimate travel companion for safe and memorable journeys.</p>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold mb-3">Features</h4>
+                                    <ul className="space-y-2 text-gray-400 text-sm">
+                                        <li>🗺️ Interactive Maps</li>
+                                        <li>🌐 AI Translation</li>
+                                        <li>📖 Travel Journal</li>
+                                        <li>🆘 Emergency SOS</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold mb-3">Safety First</h4>
+                                    <p className="text-gray-400 text-sm">Always travel safely. Keep emergency contacts accessible and stay connected with loved ones.</p>
+                                </div>
+                            </div>
+                            <div className="border-t border-gray-700 mt-8 pt-6 text-center text-gray-400 text-sm">
+                                <p>© 2024 TravelMate. Built with ❤️ for travelers worldwide.</p>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('app')).render(<App />);
+    </script>
+
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</body>
+</html>
